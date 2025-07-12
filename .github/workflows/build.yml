@@ -27,7 +27,7 @@ jobs:
           pyinstaller --onefile --name GestioneContabile gestione_contabile.py
 
       - name: Upload exe artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: GestioneContabile-exe
           path: dist/GestioneContabile.exe
