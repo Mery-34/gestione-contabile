@@ -1,153 +1,57 @@
-import csv
-import os
-from datetime import datetime
-from tabulate import tabulate
+import traceback
 
-FILE_DATI = "dati_contabili.csv"
+try:
+    from datetime import datetime
+    import os
+    from tabulate import tabulate
+    import csv
+    from collections import defaultdict
 
-def inizializza_file():
+    FILE_DATI = os.path.join(os.path.expanduser("~"), "gestione_contabile.csv")
+
+    # Se il file non esiste, crealo con intestazione
     if not os.path.exists(FILE_DATI):
         with open(FILE_DATI, mode="w", newline="", encoding="utf-8") as file:
-            writer = csv.writer(file)
-            writer.writerow(["data", "tipo", "importo", "causale"])
+            file.write("Data,Entrata,Uscita,Causale\n")
 
-def inserisci_operazione():
-    print("="*40)
-    print(" GESTIONE CONTABILE PERSONALE ".center(40, "="))
-    print("="*40)
-    print("\nInserisci i dati (lascia vuoto se non vuoi compilare una sezione):\n")
+    data_corrente = datetime.now().strftime("%Y-%m-%d")
 
-    # Entrata
+    # INSERIMENTO DATI
     entrata = input("ENTRATE\nImporto entrata (€):  ").strip()
-    causale_entrata = input("Causale entrata:        ").strip()
+    uscita = input("USCITE\nImporto uscita (€):  ").strip()
+    causale = input("Causale:  ").strip()
 
-    # Uscita
-    uscita = input("\nUSCITE\nImporto uscita (€):   ").strip()
-    causale_uscita = input("Causale uscita:         ").strip()
-
-    # Data
-    data_input = input("\nData (gg/mm/aaaa) [Invio per oggi]: ").strip()
-    if data_input == "":
-        data = datetime.today()
-    else:
-        try:
-            data = datetime.strptime(data_input, "%d/%m/%Y")
-        except ValueError:
-            print("⚠️  Formato data non valido. Uso la data di oggi.")
-            data = datetime.today()
-
-    # Salvataggio
     with open(FILE_DATI, mode="a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        if entrata:
-            try:
-                imp = float(entrata.replace(",", "."))
-                writer.writerow([data.strftime("%d/%m/%Y"), "Entrata", f"{imp:.2f}", causale_entrata])
-            except ValueError:
-                print("⚠️  Importo entrata non valido. Scartato.")
-        if uscita:
-            try:
-                imp = float(uscita.replace(",", "."))
-                writer.writerow([data.strftime("%d/%m/%Y"), "Uscita", f"{imp:.2f}", causale_uscita])
-            except ValueError:
-                print("⚠️  Importo uscita non valido. Scartato.")
+        file.write(f"{data_corrente},{entrata},{uscita},{causale}\n")
 
-    print("\nOperazioni salvate!")
+    # CALCOLO RESOCONTI
+    totali_mensili = defaultdict(lambda: [0.0, 0.0])  # [entrate, uscite]
+    anno_corrente = datetime.now().year
 
-def mostra_resoconto_mensile():
-    oggi = datetime.today()
-    mese_corrente = oggi.strftime("%m")
-    anno_corrente = oggi.strftime("%Y")
-
-    entrate = 0
-    uscite = 0
-    righe = []
-
-    if not os.path.exists(FILE_DATI):
-        print("\nNessun dato disponibile.")
-        return
-
-    with open(FILE_DATI, mode="r", newline="", encoding="utf-8") as file:
+    with open(FILE_DATI, mode="r", encoding="utf-8") as file:
         reader = csv.DictReader(file)
         for riga in reader:
-            data = datetime.strptime(riga["data"], "%d/%m/%Y")
-            if data.strftime("%m") == mese_corrente and data.strftime("%Y") == anno_corrente:
-                imp = float(riga["importo"])
-                if riga["tipo"] == "Entrata":
-                    entrate += imp
-                elif riga["tipo"] == "Uscita":
-                    uscite += imp
-                righe.append([
-                    riga["data"],
-                    riga["tipo"],
-                    f"{imp:.2f} €",
-                    riga["causale"]
-                ])
+            data = riga["Data"]
+            if not data.startswith(str(anno_corrente)):
+                continue
+            mese = data[:7]
+            e = float(riga["Entrata"]) if riga["Entrata"] else 0.0
+            u = float(riga["Uscita"]) if riga["Uscita"] else 0.0
+            totali_mensili[mese][0] += e
+            totali_mensili[mese][1] += u
 
-    saldo = entrate - uscite
-    mese_nome = oggi.strftime("%B").capitalize()
+    print("\nRESOCONTO MENSILE:")
+    tabella = []
+    for mese, valori in sorted(totali_mensili.items()):
+        tabella.append([mese, f"{valori[0]:.2f} €", f"{valori[1]:.2f} €"])
+    print(tabulate(tabella, headers=["Mese", "Entrate", "Uscite"], tablefmt="grid"))
 
-    print("\n" + "="*40)
-    print(f" RESOCONTO DI {mese_nome.upper()} {anno_corrente} ".center(40, "="))
-    print("="*40)
-    print(f"Totale entrate:  {entrate:.2f} €")
-    print(f"Totale uscite:   {uscite:.2f} €")
-    print(f"Saldo:           {saldo:.2f} €\n")
+    print("\nRESOCONTO ANNUALE:")
+    entrate_tot = sum(v[0] for v in totali_mensili.values())
+    uscite_tot = sum(v[1] for v in totali_mensili.values())
+    print(tabulate([["Totale", f"{entrate_tot:.2f} €", f"{uscite_tot:.2f} €"]],
+                   headers=["Anno", "Entrate", "Uscite"], tablefmt="grid"))
 
-    if righe:
-        print(tabulate(righe, headers=["Data", "Tipo", "Importo", "Causale"], tablefmt="grid"))
-    else:
-        print("Nessuna operazione registrata per questo mese.")
-
-def mostra_resoconto_annuale():
-    oggi = datetime.today()
-    anno_corrente = oggi.strftime("%Y")
-
-    entrate = 0
-    uscite = 0
-    righe = []
-
-    if not os.path.exists(FILE_DATI):
-        print("\nNessun dato disponibile.")
-        return
-
-    with open(FILE_DATI, mode="r", newline="", encoding="utf-8") as file:
-        reader = csv.DictReader(file)
-        for riga in reader:
-            data = datetime.strptime(riga["data"], "%d/%m/%Y")
-            if data.strftime("%Y") == anno_corrente:
-                imp = float(riga["importo"])
-                if riga["tipo"] == "Entrata":
-                    entrate += imp
-                elif riga["tipo"] == "Uscita":
-                    uscite += imp
-                righe.append([
-                    riga["data"],
-                    riga["tipo"],
-                    f"{imp:.2f} €",
-                    riga["causale"]
-                ])
-
-    saldo = entrate - uscite
-
-    print("\n" + "="*40)
-    print(f" RESOCONTO ANNUALE {anno_corrente} ".center(40, "="))
-    print("="*40)
-    print(f"Totale entrate:  {entrate:.2f} €")
-    print(f"Totale uscite:   {uscite:.2f} €")
-    print(f"Saldo:           {saldo:.2f} €\n")
-
-    if righe:
-        print(tabulate(righe, headers=["Data", "Tipo", "Importo", "Causale"], tablefmt="grid"))
-    else:
-        print("Nessuna operazione registrata per questo anno.")
-
-def main():
-    inizializza_file()
-    inserisci_operazione()
-    mostra_resoconto_mensile()
-    mostra_resoconto_annuale()
-
-if __name__ == "__main__":
-    main()
-
+except Exception:
+    with open("errore_log.txt", "w", encoding="utf-8") as log:
+        log.write(traceback.format_exc())
