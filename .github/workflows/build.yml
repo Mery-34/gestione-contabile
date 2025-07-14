@@ -1,34 +1,31 @@
-name: Build exe with PyInstaller
+name: Build EXE
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    paths:
+      - gestione_contabile.py
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pyinstaller tabulate
+      - name: Install pyinstaller
+        run: pip install pyinstaller
 
-      - name: Build exe
-        run: |
-          pyinstaller --onefile --name GestioneContabile gestione_contabile.py
+      - name: Build EXE
+        run: pyinstaller --onefile --noconsole gestione_contabile.py
 
-      - name: Upload exe artifact
+      - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
-          name: GestioneContabile-exe
-          path: dist/GestioneContabile.exe
-
+          name: gestione_contabile_exe
+          path: dist/gestione_contabile.exe
